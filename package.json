@@ -1,0 +1,18 @@
+{
+  "name": "mleagueresult",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "config": "^3.3.8",
+    "log4js": "^6.7.1",
+    "mongodb": "4.1",
+    "selenium-download": "^2.0.16",
+    "selenium-webdriver": "^4.7.1"
+  }
+}
