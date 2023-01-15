@@ -441,8 +441,8 @@ var statsTemp = {
   供託: "",
   積み棒: "",
   聴牌料: "",
-  局収支: "",
-  立直: "",
+  局収支: "0",
+  立直: "NO",
   副露: "",
   持ち点: "",
   和了: "",
@@ -500,8 +500,9 @@ class WebCls {
       let battleNo = day.indexOf("0") === 0 ? conf.year[1] + day : conf.year[0] + day;
       for (let i = 1; i < 3; i++) {
         driver = await ana.exec(`${battleNo}-${i}`);
+        // break; // test
       }
-      break; // test
+      // break; // test
     }
     await driver.quit();
   }
@@ -515,7 +516,7 @@ class Analyzer extends BaseWebDriverWrapper {
     this.logger.info(`constructor`);
   }
   async exec(battle) {
-    this.logger.info("きた？");
+    this.logger.info("きた？" + battle);
     try {
       if (!this.getDriver()) {
         this.setDriver(await this.webDriver());
@@ -524,9 +525,9 @@ class Analyzer extends BaseWebDriverWrapper {
         memberKeyList = [],
         kyokuStats = [],
         results = [];
-      if (false) {
+      if (true) {
         await this.driver.get(`${this.baseUrl}${battle}`); // このページを解析
-        let se = ["div.entry-content strong"];
+        let se = ["div.entry-content strong,div.entry-content b"];
         // 必要な情報を取り合えず全部取得
         if (await this.isExistEle(se[0], true, 3000)) {
           let els = await this.getEles(se[0], 3000);
@@ -548,7 +549,7 @@ class Analyzer extends BaseWebDriverWrapper {
               // 東、南?局　が先頭の行から次に出てくる東までを判断
               // その1局の情報として解析
               let recs = [text];
-              for (let j = 1; j < 4; j++) {
+              for (let j = 1; j < 5; j++) {
                 let text2 = await els[i + j].getText();
                 text2 = text2.trim();
                 regex = "[東南](\\d)局";
@@ -558,12 +559,12 @@ class Analyzer extends BaseWebDriverWrapper {
                   i += j - 1;
                   break;
                 } else {
-                  regex = `^(${memberKeyList.join("|")})`;
+                  regex = `^(${memberKeyList.concat("全員").join("|")})`;
                   matches = text2.match(regex);
                   if (matches && matches.length) {
                     // 最初の文字がメンバーの場合追加
                     recs.push(text2);
-                  } else recs[0] += text2; // 改行されてるので結合
+                  } else recs[recs.length - 1] += text2; // 改行されてるので結合
                 }
               }
               kyokuStats.push(recs);
@@ -690,10 +691,13 @@ class Analyzer extends BaseWebDriverWrapper {
       //   着順: "",
       // };
       let statsRecs = [];
+      let nowPoints = {}; // 今の持ち点
+      member.forEach((m) => (nowPoints[m.no] = 25000));
       for (let stats of kyokuStats) {
         let oya = "";
         let kyoutaku = "";
         let base = {};
+        let tumiBa = "";
         for (let i in stats) {
           let line = stats[i];
           if (i == 0) {
@@ -702,6 +706,7 @@ class Analyzer extends BaseWebDriverWrapper {
             let m2 = line.match(regexs[1]);
             let m3 = line.match(regexs[2]);
             oya = memberKeyList.filter((m) => line.indexOf(m) > -1)[0];
+            tumiBa = m2 ? m2[1] : "";
             if (m3) kyoutaku = m3[1];
             let kyoku = KYOKU_LIST.filter(
               (k) => k.no == `${m1[1] == "東" ? "t" : "n"}-${m1[2]}-${m2 ? m2[1] : "0"}`
@@ -715,94 +720,144 @@ class Analyzer extends BaseWebDriverWrapper {
             };
           } else {
             let pointer = memberKeyList.filter((m) => line.indexOf(m) > -1);
-            let debtor = [];
             let pMap = [];
             let yaku = [];
             let tumi = "";
-            if (line.indexOf("ツモ上がり") > -1) {
-              let regexs = [/\d本場 (\d+)点(?:オール)?/, /(\d+)点/g];
+            if (line.indexOf("ツモ上がり") > -1 || line.indexOf("ツモがり") > -1) {
+              let regexs = [/\d本場\s?(\d+)点(?:オール)?/, /(\d+)点/g];
               let matches = line.match(regexs[0]); // 積み棒
-              if (matches && matches.length > 0) {
+              if (matches && matches.length > 0 && tumiBa) {
                 tumi = matches[1];
                 line = line.replace(regexs[0], "");
               }
+              if (tumiBa) tumi = String(Number(tumiBa) * 100);
               matches = line.matchAll(regexs[1]);
               let matcheList = Array.from(matches); // 配列に変換
               if (matcheList.length === 1) {
                 // ○○オール
-                pMap.push({ key: pointer[0], mNo: getMid(pointer[0]), income: String(Number(matcheList[0][1]) * 3) }); // 貰う点数
+                pMap.push({
+                  key: pointer[0],
+                  mNo: getMid(pointer[0]).no,
+                  income: String(Number(matcheList[0][1]) * 3),
+                }); // 貰う点数
                 member.forEach((m) => {
-                  if (m.no != getMid(pointer[0])) pMap.push({ mNo: m.no, income: `-${matcheList[0][1]}` }); // 払う点数
+                  if (m.no != getMid(pointer[0]).no) pMap.push({ mNo: m.no, income: `-${matcheList[0][1]}` }); // 払う点数
                 });
               } else if (matcheList && matcheList.length === 2) {
                 let pChild = matcheList[0][1],
                   pParent = matcheList[1][1];
-                if (pChild > pParent) (pChild = matcheList[1][1]), (pParent = matcheList[0][1]);
-                pMap.push({ key: pointer[0], income: String(Number(pChild) * 2 + Number(pParent)) }); // 貰う点数
+                if (Number(pChild) > Number(pParent)) (pChild = matcheList[1][1]), (pParent = matcheList[0][1]);
+                pMap.push({
+                  mNo: getMid(pointer[0]).no,
+                  key: pointer[0],
+                  income: String(Number(pChild) * 2 + Number(pParent)),
+                }); // 貰う点数
                 member.forEach((m) => {
                   // 例外でmNoを持つ 和了者以外
-                  if (m.no != getMid(pointer[0]))
-                    pMap.push({ mNo: m.no, income: `^${m.no == getMid(oya) ? pParent : pChild}` }); // 払う点数
+                  if (m.no != getMid(pointer[0]).no)
+                    pMap.push({ mNo: m.no, income: `-${m.no == getMid(oya).no ? pParent : pChild}` }); // 払う点数
                 });
               }
               line = line.replaceAll(regexs[1], "");
               yaku = line.split("）")[1].split("（")[0].split(" ");
-            } else if (line.indexOf("テンパイ") > -1) {
-              yaku.push("テンパイ");
-              pointer.forEach((p) => pMap.push({ key: p, mNo: getMid(p), income: String(3000 / pointer.length) }));
-              memberKeyList.forEach((m) => {
-                if (pointer.indexOf(m) === -1)
-                  pMap.push({ key: m, mNo: getMid(m), income: `-${String(3000 / (4 - pointer.length))}` });
-              });
-            } else if (line.indexOf("からロン上がり") > -1) {
-              let regexs = [`(${memberKeyList.join("|")})からロン上がり`, /\d本場 (\d+)点/, /(\d+)点/g];
+              // } else if (line.indexOf("テンパイ") > -1) {
+              //   yaku.push("流局");
+              //   pointer.forEach((p) => pMap.push({ key: p, mNo: getMid(p).no, income: String(3000 / pointer.length) }));
+              //   memberKeyList.forEach((m) => {
+              //     if (pointer.indexOf(m) === -1)
+              //       pMap.push({ key: m, mNo: getMid(m).no, income: `-${String(3000 / (4 - pointer.length))}` });
+              //   });
+            } else if (line.indexOf("流局") > -1 || line.indexOf("テンパイ") > -1 || line.indexOf("ノーテン") > -1) {
+              if (line.indexOf("テンパイ") > -1) yaku.push("テンパイ");
+              else yaku.push("ノーテン");
+              if (pointer.length) {
+                pointer.forEach((p) => pMap.push({ key: p, mNo: getMid(p).no, income: String(3000 / pointer.length) }));
+                memberKeyList.forEach((m) => {
+                  if (pointer.indexOf(m) === -1)
+                    pMap.push({ key: m, mNo: getMid(m).no, income: `-${String(3000 / (4 - pointer.length))}` });
+                });
+              } else {
+                memberKeyList.forEach((m) => {
+                  pMap.push({ key: m, mNo: getMid(m).no, income: 0 });
+                });
+              }
+            } else if (line.indexOf("からロン上がり") > -1 || line.indexOf("から上がり") > -1 || line.indexOf("上がり") > -1) {
+              let regexs = [`(${memberKeyList.join("|")})(?:から)?(?:ロン)?(?:.)?上がり`, /\d本場 (\d+)点/, /(\d+)点/g];
               let m1 = line.match(regexs[0]);
               pointer = pointer.filter((p) => p != m1[1]); //  上がりの人
               // debtor.push(m1[1]); // ロンされた人
               let matches = line.match(regexs[1]); // 積み棒
-              if (matches && matches.length > 0) {
+              if (matches && matches.length > 0 && tumiBa) {
                 tumi = matches[1];
                 line = line.replace(regexs[1], "");
               }
+              if (tumiBa) tumi = String(Number(tumiBa) * 300);
               matches = line.matchAll(regexs[2]);
               let matcheList = Array.from(matches); // 配列に変換
-              pMap.push({ key: pointer[0], mNo: getMid(pointer[0]), income: matcheList[0][1] }); // 貰う点数
-              pMap.push({ key: m1[1], mNo: getMid(m1[1]), income: `-${matcheList[0][1]}` }); // 払う点数
+              pMap.push({ key: pointer[0], mNo: getMid(pointer[0]).no, income: matcheList[0][1] }); // 貰う点数
+              pMap.push({ key: m1[1], mNo: getMid(m1[1]).no, income: `-${matcheList[0][1]}` }); // 払う点数
               line = line.replaceAll(regexs[2], "");
               yaku = line.split("）")[1].split("（")[0].split(" ");
             } else this.logger.info("上がり不明");
             member.forEach((m) => {
               let statsRec = { ...base, 選手No: m.no, TeamID: m.teamId, 選手名: m.full };
-              let currentP = pMap.filter((p) => p.mNo === m.no);
-              if (yaku[0] == "テンパイ") {
-                if (Number(currentP) > 1) statsRec["結果"] = "流局聴牌";
+              let currentP = pMap.filter((p) => p.mNo === m.no)[0];
+              if (["テンパイ", "ノーテン"].indexOf(yaku[0]) > -1) {
+                if (Number(currentP.income) > 1) statsRec["結果"] = "流局聴牌";
+                else if (Number(currentP.income) === 0)
+                  statsRec["結果"] = yaku[0] == "テンパイ" ? "流局聴牌" : "流局不聴";
                 else statsRec["結果"] = "流局不聴";
-                statsRec["聴牌料"] = currentP;
+                statsRec["聴牌料"] = currentP.income;
+                statsRec["局収支"] = currentP.income;
+                statsRec["持ち点"] = String(nowPoints[m.no] + Number(statsRec["局収支"]));
+                nowPoints[m.no] = Number(statsRec["持ち点"]);
               } else if (pMap.length == 2) {
+                // ロン
                 if (currentP) {
-                  if (Number(currentP) > 1) {
+                  if (Number(currentP.income) > 1) {
                     statsRec["結果"] = "出和了り";
-                    statsRec["和了点"] = currentP;
-                    statsRec["打点"] = currentP;
-                    statsRec["供託"] = String(Number(kyoutaku) * 1000);
+                    statsRec["和了点"] = currentP.income;
+                    statsRec["打点"] = currentP.income;
+                    statsRec["供託"] = Number(kyoutaku) ? String(Number(kyoutaku) * 1000) : "";
                     statsRec["積み棒"] = tumi;
                     statsRec["和了"] = "和了";
-                    statsRec["役"] = yaku.join("、");
-                    statsRec["立直"] = yaku.indexOf("リーチ") > -1 || yaku.indexOf("立直") > -1 ? "立直" : "";
+                    statsRec["役"] = yaku.join("、").trim();
+                    statsRec["立直"] = yaku.indexOf("リーチ") > -1 || yaku.indexOf("立直") > -1 ? "立直" : "NO";
+                    statsRec["局収支"] = currentP.income;
                   } else
-                    (statsRec["結果"] = "放銃"), (statsRec["和了点"] = currentP), (statsRec["積み棒"] = `-${tumi}`);
+                    (statsRec["結果"] = "放銃"),
+                      (statsRec["和了点"] = currentP.income),
+                      (statsRec["積み棒"] = tumi ? `-${tumi}` : ""),
+                      (statsRec["局収支"] = currentP.income);
                 } else (statsRec["結果"] = "横移動"), (statsRec["和了点"] = "0");
+                if (statsRec["供託"])
+                  statsRec["局収支"] = String(Number(statsRec["局収支"]) + Number(statsRec["供託"]));
+                if (statsRec["積み棒"])
+                  statsRec["局収支"] = String(Number(statsRec["局収支"]) + Number(statsRec["積み棒"]));
+                statsRec["持ち点"] = String(nowPoints[m.no] + Number(statsRec["局収支"]));
+                nowPoints[m.no] = Number(statsRec["持ち点"]);
               } else if (pMap.length == 4) {
-                if (Number(currentP) > 1) {
+                // ツモ
+                if (Number(currentP.income) > 1) {
                   statsRec["結果"] = "自摸和了り";
-                  statsRec["打点"] = currentP;
-                  statsRec["供託"] = String(Number(kyoutaku) * 1000);
-                  statsRec["積み棒"] = String(Number(tumi) * 3);
+                  statsRec["打点"] = currentP.income;
+                  statsRec["供託"] = Number(kyoutaku) ? String(Number(kyoutaku) * 1000) : "";
+                  statsRec["積み棒"] = tumi ? String(Number(tumi) * 3) : "";
                   statsRec["和了"] = "和了";
-                  statsRec["役"] = yaku.join("、");
-                  statsRec["立直"] = yaku.indexOf("リーチ") > -1 || yaku.indexOf("立直") > -1 ? "立直" : "";
-                } else (statsRec["結果"] = "自摸られ"), (statsRec["積み棒"] = `-${tumi}`);
-                statsRec["和了点"] = currentP;
+                  statsRec["役"] = yaku.join("、").trim();
+                  statsRec["立直"] = yaku.indexOf("リーチ") > -1 || yaku.indexOf("立直") > -1 ? "立直" : "NO";
+                } else
+                  (statsRec["結果"] = "自摸られ"),
+                    (statsRec["積み棒"] = tumi ? `-${tumi}` : ""),
+                    (statsRec["立直"] = "NO");
+                statsRec["和了点"] = currentP.income;
+                statsRec["局収支"] = currentP.income;
+                if (statsRec["供託"])
+                  statsRec["局収支"] = String(Number(statsRec["局収支"]) + Number(statsRec["供託"]));
+                if (statsRec["積み棒"])
+                  statsRec["局収支"] = String(Number(statsRec["局収支"]) + Number(statsRec["積み棒"]));
+                statsRec["持ち点"] = String(nowPoints[m.no] + Number(statsRec["局収支"]));
+                nowPoints[m.no] = Number(statsRec["持ち点"]);
               }
 
               statsRecs.push(statsRec);
@@ -810,7 +865,8 @@ class Analyzer extends BaseWebDriverWrapper {
           }
         }
       }
-      let resultRecs = [];
+      let resultRecs = []; // 結果
+      let lastStats = statsRecs.filter((s, i) => i > statsRecs.length - 5);
       results.forEach((r) => {
         let p = "",
           uma = 0;
@@ -835,19 +891,33 @@ class Analyzer extends BaseWebDriverWrapper {
           シーズン: getSeason(battle.substr(4, 4)),
           TeamID: r.teamId,
           登板選手: r.no,
+          選手名: member.filter((m) => m.no === r.no)[0].full,
           ポイント: p,
           保有点: r.ten,
           着順: r.order,
         });
+        let lastP = lastStats.filter((l) => l["選手No"] == r.no)[0];
+        if (lastP["持ち点"] != r.ten)
+          this.logger.info(
+            `wrong Point!! ${resultRecs[resultRecs.length - 1]["選手名"]}stats:[${lastP["持ち点"]}] res:[${r.ten}]`
+          );
       });
-
-      this.logger.info(statsRecs, resultRecs);
+      this.logger.debug(statsRecs, resultRecs);
       // DBに保存
+      await this.updateLutl("stats", statsRecs);
+      await this.updateLutl("resutls", resultRecs);
     } catch (e) {
       this.logger.info(e);
       await this.quitDriver();
     }
+
     return this.driver;
+  }
+
+  // 取得結果をDBに書き込み
+  async updateLutl(col, doc) {
+    let rec = await db(col, "insertMany", {}, doc);
+    this.logger.info("insertMany!!!");
   }
 }
 start();
