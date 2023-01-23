@@ -1,0 +1,2 @@
+mongoexport -d mleague -c resutls -o results.csv --type csv --fields="試合No,日にち,シーズン,TeamID,登板選手,選手名,ポイント,保有点,着順"
+mongoexport -d mleague -c stats -o stats.csv --type csv --fields='試合No,日にち,選手No,TeamID,選手名,局No,局,結果,和了点,供託,積み棒,聴牌料,局収支,立直,副露,持ち点,和了,役,打点'

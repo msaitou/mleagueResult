@@ -393,10 +393,10 @@ const MEMBER_LIST = [
   },
   {
     no: "M-035",
-    full2: "中林圭",
-    last: "中林",
+    full2: "仲林圭",
+    last: "林",
     first: "圭",
-    full: "中林 圭",
+    full: "仲林 圭",
     teamId: "T-5",
     teamName: "U-NEXT Pirates",
   },
@@ -421,6 +421,7 @@ const MEMBER_LIST = [
   {
     no: "M-038",
     full2: "本田朋広",
+    full3: "本田朋弘",
     last: "本田",
     first: "朋広",
     full: "本田 朋広",
@@ -522,9 +523,23 @@ class Analyzer extends BaseWebDriverWrapper {
         this.setDriver(await this.webDriver());
       }
       let member = [],
+        narabi = [],
         memberKeyList = [],
         kyokuStats = [],
         results = [];
+      let getMid = (name) => {
+        return member.filter((m) => m.last == name || m.first == name)[0];
+      };
+      let getHiniti = (b) => {
+        return `${b.substr(0, 4)}/${Number(b.substr(4, 2)).toString()}/${Number(b.substr(6, 2)).toString()}`;
+      };
+      let getSeason = (day) => {
+        let mark = "R";
+        if (conf.semi.indexOf(day) > -1) mark = "S";
+        else if (conf.final.indexOf(day) > -1) mark = "F";
+        return conf.year[0] + mark;
+      };
+
       if (true) {
         await this.driver.get(`${this.baseUrl}${battle}`); // このページを解析
         let se = ["div.entry-content strong,div.entry-content b"];
@@ -539,13 +554,17 @@ class Analyzer extends BaseWebDriverWrapper {
             // logger.info(`${matches[1]}は、`);
             if (text.indexOf("vs") > -1) {
               // vs 4人を決める
-              let tmpMens = MEMBER_LIST.filter((m) => text.indexOf(m.full2) > -1);
+              let tmpMens = MEMBER_LIST.filter(
+                (m) => text.indexOf(m.full2) > -1 || (m.full3 && text.indexOf(m.full3) > -1)
+              );
               tmpMens.forEach((t) => {
                 memberKeyList.push(t.last);
                 memberKeyList.push(t.first);
               });
               member = member.concat(tmpMens);
             } else if (matches && matches.length > 1) {
+              let oya = memberKeyList.filter((m) => text.indexOf(m) > -1)[0];
+              if (narabi.filter((m) => m?.no == getMid(oya).no).length === 0) narabi.push(getMid(oya)); // 席順
               // 東、南?局　が先頭の行から次に出てくる東までを判断
               // その1局の情報として解析
               let recs = [text];
@@ -665,18 +684,6 @@ class Analyzer extends BaseWebDriverWrapper {
       if (results.length !== 4) this.logger.info(`${battle}の結果が${results.length}`);
       if (member.length !== 4) this.logger.info(`${battle}のメンバが${member.length}`);
       if (kyokuStats.length < 8) this.logger.info(`${battle}の局が${kyokuStats.length}`);
-      let getMid = (name) => {
-        return member.filter((m) => m.last == name || m.first == name)[0];
-      };
-      let getHiniti = (b) => {
-        return `${b.substr(0, 4)}/${Number(b.substr(4, 2)).toString()}/${Number(b.substr(6, 2)).toString()}`;
-      };
-      let getSeason = (day) => {
-        let mark = "R";
-        if (conf.semi.indexOf(day) > -1) mark = "S";
-        else if (conf.final.indexOf(day) > -1) mark = "F";
-        return conf.year[0] + mark;
-      };
       // 必要な項目は計算して1試合分のデータを整形
 
       // var resultTemp = {
@@ -692,7 +699,7 @@ class Analyzer extends BaseWebDriverWrapper {
       // };
       let statsRecs = [];
       let nowPoints = {}; // 今の持ち点
-      member.forEach((m) => (nowPoints[m.no] = 25000));
+      narabi.forEach((m) => (nowPoints[m.no] = 25000));
       for (let stats of kyokuStats) {
         let oya = "";
         let kyoutaku = "";
@@ -781,7 +788,11 @@ class Analyzer extends BaseWebDriverWrapper {
                   pMap.push({ key: m, mNo: getMid(m).no, income: 0 });
                 });
               }
-            } else if (line.indexOf("からロン上がり") > -1 || line.indexOf("から上がり") > -1 || line.indexOf("上がり") > -1) {
+            } else if (
+              line.indexOf("からロン上がり") > -1 ||
+              line.indexOf("から上がり") > -1 ||
+              line.indexOf("上がり") > -1
+            ) {
               let regexs = [`(${memberKeyList.join("|")})(?:から)?(?:ロン)?(?:.)?上がり`, /\d本場 (\d+)点/, /(\d+)点/g];
               let m1 = line.match(regexs[0]);
               pointer = pointer.filter((p) => p != m1[1]); //  上がりの人
@@ -799,7 +810,7 @@ class Analyzer extends BaseWebDriverWrapper {
               line = line.replaceAll(regexs[2], "");
               yaku = line.split("）")[1].split("（")[0].split(" ");
             } else this.logger.info("上がり不明");
-            member.forEach((m) => {
+            narabi.forEach((m) => {
               let statsRec = { ...base, 選手No: m.no, TeamID: m.teamId, 選手名: m.full };
               let currentP = pMap.filter((p) => p.mNo === m.no)[0];
               if (["テンパイ", "ノーテン"].indexOf(yaku[0]) > -1) {
