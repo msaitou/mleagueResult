@@ -3,3 +3,6 @@ config/default.json
 log/
 bin/
 node_modules/
+douga-dl/settings.json
+douga-dl/tmp/*
+douga-dl/settings.json.a

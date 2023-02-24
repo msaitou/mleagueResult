@@ -394,7 +394,7 @@ const MEMBER_LIST = [
   {
     no: "M-035",
     full2: "仲林圭",
-    last: "林",
+    last: "仲林",
     first: "圭",
     full: "仲林 圭",
     teamId: "T-5",
@@ -818,6 +818,7 @@ class Analyzer extends BaseWebDriverWrapper {
                 else if (Number(currentP.income) === 0)
                   statsRec["結果"] = yaku[0] == "テンパイ" ? "流局聴牌" : "流局不聴";
                 else statsRec["結果"] = "流局不聴";
+                statsRec["和了点"] = "0";
                 statsRec["聴牌料"] = currentP.income;
                 statsRec["局収支"] = currentP.income;
                 statsRec["持ち点"] = String(nowPoints[m.no] + Number(statsRec["局収支"]));
