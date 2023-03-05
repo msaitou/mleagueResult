@@ -6,3 +6,4 @@ node_modules/
 douga-dl/settings.json
 douga-dl/tmp/*
 douga-dl/settings.json.a
+cli_trans_yt_dlp.py

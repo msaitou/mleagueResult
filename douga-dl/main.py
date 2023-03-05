@@ -34,8 +34,8 @@ else:
 # print(urls)
 opt = {
     'format': 'worst.3',
-    'username': 'nsksaitou@gmail.com',
-    'password': 'nsksaitou2wsx',
+    'username': setting["username"],
+    'password': setting["password"],
     "outtmpl": setting["dl_pass"] + "%(title)s.%(ext)s",
 }
 """ https://masayoshi-9a7ee.hatenablog.com/entry/2021/11/06/112639 """
